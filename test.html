@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SDK Local Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #e5e5e5; padding: 2rem; }
+    h1 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1.5rem; color: #fff; }
+    .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; }
+    .card h2 { font-size: 0.75rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; }
+    .field { margin-bottom: 0.75rem; }
+    label { display: block; font-size: 0.75rem; color: #888; margin-bottom: 0.3rem; }
+    input { width: 100%; padding: 0.5rem 0.75rem; font-size: 0.85rem; background: #111; border: 1px solid #333; border-radius: 6px; color: #e5e5e5; outline: none; }
+    input:focus { border-color: #555; }
+    .toggle-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem; color: #ccc; }
+    .btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    button { padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 500; transition: opacity 0.15s; }
+    button:hover { opacity: 0.85; }
+    .btn-primary { background: #6d5fd4; color: #fff; }
+    .btn-danger  { background: #333; color: #f87171; border: 1px solid #444; }
+    .btn-neutral { background: #222; color: #ccc; border: 1px solid #333; }
+    #log { background: #0a0a0a; border: 1px solid #222; border-radius: 8px; padding: 1rem; min-height: 160px; max-height: 380px; overflow-y: auto; font-family: monospace; font-size: 0.78rem; line-height: 1.7; }
+    .l-time { color: #555; }
+    .l-info { color: #60a5fa; }
+    .l-ok   { color: #4ade80; }
+    .l-warn { color: #fbbf24; }
+    .l-err  { color: #f87171; }
+    .l-dim  { color: #555; }
+    #notify-box { display: none; }
+    #notify-box.show { display: block; }
+    .notif { background: #1e1e2e; border: 1px solid #6d5fd4; border-radius: 8px; padding: 0.75rem 1rem; margin-top: 0.5rem; font-size: 0.85rem; }
+    .notif strong { color: #a78bfa; }
+    .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: #555; }
+    .status-dot.connected { background: #4ade80; }
+    .status-dot.error { background: #f87171; }
+  </style>
+</head>
+<body>
+
+<h1>🔔 Notification SDK — Local Test</h1>
+
+<div class="card">
+  <h2>Config</h2>
+  <div class="field">
+    <label>API Key</label>
+    <input id="apiKey" placeholder="cust_abc123..." />
+  </div>
+  <div class="field">
+    <label>User ID</label>
+    <input id="userId" placeholder="1" />
+  </div>
+  <div class="toggle-row">
+    <input type="checkbox" id="enablePush" style="width:auto; accent-color:#6d5fd4" />
+    <label for="enablePush" style="margin:0">Enable Push (Firebase / OneSignal)</label>
+  </div>
+  <div class="btn-row">
+    <button class="btn-primary" onclick="startSDK()">▶ Init SDK</button>
+    <button class="btn-danger"  onclick="stopSDK()">■ Disconnect</button>
+    <button class="btn-neutral" onclick="clearLog()">Clear log</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Connection status — <span id="status-text">idle</span> <span class="status-dot" id="status-dot"></span></h2>
+</div>
+
+<div class="card" id="notify-box">
+  <h2>Last notification received</h2>
+  <div id="notify-content"></div>
+</div>
+
+<div class="card">
+  <h2>Log</h2>
+  <div id="log"></div>
+</div>
+
+<!-- SDK — iife build থেকে load -->
+<script src="./dist/sdk.min.js"></script>
+
+<script>
+  // sdk.min.js IIFE build এ NotificationService global হিসেবে expose হয়
+  // rollup config এ name: "NotificationService" দেওয়া আছে
+  // কিন্তু class export default হওয়ায় window.NotificationService.default হতে পারে
+  // তাই normalize করি
+  const SDK = window.NotificationService?.default ?? window.NotificationService;
+
+  function ts() {
+    const d = new Date();
+    return [d.getHours(), d.getMinutes(), d.getSeconds()]
+      .map((n) => String(n).padStart(2, "0"))
+      .join(":");
+  }
+
+  function log(msg, type = "info") {
+    const box = document.getElementById("log");
+    const div = document.createElement("div");
+    div.innerHTML = `<span class="l-time">${ts()}</span>  <span class="l-${type}">${msg}</span>`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function setStatus(state) {
+    const dot  = document.getElementById("status-dot");
+    const text = document.getElementById("status-text");
+    dot.className  = "status-dot" + (state === "connected" ? " connected" : state === "error" ? " error" : "");
+    text.textContent = state;
+  }
+
+  function clearLog() {
+    document.getElementById("log").innerHTML = "";
+  }
+
+  async function startSDK() {
+    if (!SDK) {
+      log("SDK not loaded — dist/sdk.min.js missing. Run: npm run build", "err");
+      return;
+    }
+
+    const apiKey = document.getElementById("apiKey").value.trim();
+    const userId = document.getElementById("userId").value.trim();
+    const enablePush = document.getElementById("enablePush").checked;
+
+    if (!apiKey || !userId) {
+      log("API key এবং User ID দাও।", "warn");
+      return;
+    }
+
+    log(`Init: apiKey=${apiKey.slice(0, 8)}..., userId=${userId}, enablePush=${enablePush}`, "info");
+    setStatus("connecting...");
+
+    try {
+      await SDK.init({
+        apiKey,
+        userId,
+        enablePush,
+        onNotify: (data) => {
+          log(`🔔 Notification received! id=${data.id} type=${data.type}`, "ok");
+          log(`   message: ${data.short_message ?? data.raw?.message ?? JSON.stringify(data.raw)}`, "ok");
+
+          const box     = document.getElementById("notify-box");
+          const content = document.getElementById("notify-content");
+          box.classList.add("show");
+          content.innerHTML = `
+            <div class="notif">
+              <strong>${data.type ?? "notification"}</strong><br/>
+              ${data.short_message ?? ""}<br/>
+              <small style="color:#666; font-size:0.72rem">${JSON.stringify(data.raw)}</small>
+            </div>`;
+        },
+      });
+
+      setStatus("connected");
+      log("✓ SDK connected successfully!", "ok");
+    } catch (err) {
+      setStatus("error");
+      log(`✗ Init failed: ${err.message}`, "err");
+    }
+  }
+
+  function stopSDK() {
+    if (!SDK) return;
+    SDK.disconnect();
+    setStatus("disconnected");
+    log("SDK disconnected.", "dim");
+  }
+
+  log("SDK test page ready. API Key + User ID দিয়ে Init করো।", "dim");
+</script>
+</body>
+</html>

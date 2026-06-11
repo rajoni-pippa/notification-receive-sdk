@@ -1,0 +1,196 @@
+
+
+const SAAS_URL = "https://pippasync-notification-service.test/api";
+
+export async function initPush(apiKey, userId, pushConfig) {
+  if (!pushConfig || !pushConfig.provider) {
+    console.warn("[Push] No push config from server. Push disabled.");
+    return;
+  }
+
+  const { provider } = pushConfig;
+
+  if (provider === "firebase") {
+    await initFirebasePush(apiKey, userId, pushConfig);
+  } else if (provider === "onesignal") {
+    await initOneSignalPush(apiKey, userId, pushConfig);
+  } else {
+    console.warn(`[Push] Unknown provider: ${provider}`);
+  }
+}
+
+// ─────────────────────────────────────────────
+// FIREBASE — Blob SW, no public folder needed
+// ─────────────────────────────────────────────
+
+async function initFirebasePush(apiKey, userId, pushConfig) {
+  const { firebase_config, vapid_key, sdk_version } = pushConfig;
+
+  if (!firebase_config || !vapid_key) {
+    console.warn("[Push] Firebase config or vapid_key missing.");
+    return;
+  }
+
+  const version = sdk_version || "10.12.5";
+
+  try {
+    const [{ initializeApp, getApps }, { getMessaging, getToken, isSupported }] =
+      await Promise.all([
+        import(`https://www.gstatic.com/firebasejs/${version}/firebase-app.js`),
+        import(
+          `https://www.gstatic.com/firebasejs/${version}/firebase-messaging.js`
+        ),
+      ]);
+
+    const supported = await isSupported();
+    if (!supported) {
+      console.warn("[Push] Firebase Messaging not supported in this browser.");
+      return;
+    }
+
+    const apps = getApps();
+    const app =
+      apps.find((a) => a.name === "__notification_service__") ??
+      initializeApp(firebase_config, "__notification_service__");
+
+    const messaging = getMessaging(app);
+
+    // ── Dynamic SW via Blob ───────────────────────────────────────────────
+
+    const registration = await registerFirebaseSWBlob(firebase_config, version);
+
+    const token = await getToken(messaging, {
+      vapidKey: vapid_key,
+      serviceWorkerRegistration: registration,
+    });
+
+    if (token) {
+      await saveDeviceToken(apiKey, userId, token, "firebase");
+      console.log("[Push] Firebase token registered.");
+    }
+  } catch (err) {
+    console.error("[Push] Firebase init failed:", err.message);
+  }
+}
+
+
+async function registerFirebaseSWBlob(firebaseConfig, version) {
+  const swCode = `
+importScripts('https://www.gstatic.com/firebasejs/${version}/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/${version}/firebase-messaging-compat.js');
+
+firebase.initializeApp(${JSON.stringify(firebaseConfig)});
+
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage(function(payload) {
+  const title = payload.notification?.title || 'Notification';
+  const body  = payload.notification?.body  || '';
+  const icon  = payload.notification?.icon  || '';
+  self.registration.showNotification(title, { body, icon });
+});
+`;
+
+  const blob = new Blob([swCode], { type: "application/javascript" });
+  const blobUrl = URL.createObjectURL(blob);
+
+  const existing = await navigator.serviceWorker
+    .getRegistration("/")
+    .catch(() => null);
+
+  if (existing) {
+    await existing.update();
+    return existing;
+  }
+
+  const registration = await navigator.serviceWorker.register(blobUrl, {
+    scope: "/",
+  });
+
+  console.log("[Push] Firebase SW registered via Blob URL.");
+  return registration;
+}
+
+// ─────────────────────────────────────────────
+// ONESIGNAL — version server 
+// ─────────────────────────────────────────────
+
+async function initOneSignalPush(apiKey, userId, pushConfig) {
+  const { onesignal_app_id, sdk_version } = pushConfig;
+
+  if (!onesignal_app_id) {
+    console.warn("[Push] OneSignal app_id missing.");
+    return;
+  }
+
+  const version = sdk_version || "16";
+
+  try {
+    await loadScript(
+      `https://cdn.onesignal.com/sdks/web/v${version}/OneSignalSDK.page.js`
+    );
+
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+
+    await new Promise((resolve, reject) => {
+      window.OneSignalDeferred.push(async (OneSignal) => {
+        try {
+          await OneSignal.init({
+            appId: onesignal_app_id,
+            serviceWorkerPath: `${SAAS_URL}/sdk/sw/onesignal?api_key=${apiKey}`,
+            allowLocalhostAsSecureOrigin: true,
+          });
+
+          await OneSignal.Notifications.requestPermission();
+          await OneSignal.login(String(userId));
+
+          const subscriptionId = await OneSignal.User.PushSubscription.id;
+
+          if (subscriptionId) {
+            await saveDeviceToken(apiKey, userId, subscriptionId, "onesignal");
+            console.log("[Push] OneSignal token registered.");
+          }
+
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+  } catch (err) {
+    console.error("[Push] OneSignal init failed:", err.message);
+  }
+}
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+
+async function saveDeviceToken(apiKey, userId, token, provider) {
+  try {
+    await fetch(`${SAAS_URL}/sdk/device-token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": apiKey,
+      },
+      body: JSON.stringify({ user_id: userId, token, provider }),
+    });
+  } catch (err) {
+    console.error("[Push] Failed to save device token:", err.message);
+  }
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      return resolve();
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.defer = true;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+    document.head.appendChild(script);
+  });
+}

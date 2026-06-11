@@ -1,0 +1,32 @@
+{
+  "name": "@rajoni/notification-service-sdk",
+  "version": "1.1.0",
+  "description": "Realtime in-app notification SDK for Notification Service",
+  "main": "dist/sdk.esm.js",
+  "module": "dist/sdk.esm.js",
+  "type": "module",
+  "browser": "dist/sdk.min.js",
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c --watch"
+  },
+  "dependencies": {
+    "laravel-echo": "^1.15.3",
+    "pusher-js": "^8.3.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser": "^0.4.0",
+    "rollup": "^4.0.0"
+  },
+  "keywords": [
+    "notification",
+    "realtime",
+    "websocket",
+    "reverb",
+    "pusher"
+  ],
+  "author": "Rajoni",
+  "license": "MIT"
+}
