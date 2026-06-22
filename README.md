@@ -28,7 +28,7 @@ npm install @rajoni/notification-service-sdk@latest
 NotificationService.init({
   apiKey:     "your_workspace_api_key",
   userId:     1,
-  enablePush: true,
+  enablePush: true,   // ← set true to enable browser push notifications
   onNotify: (data) => {
     console.log(data.short_message);
   },

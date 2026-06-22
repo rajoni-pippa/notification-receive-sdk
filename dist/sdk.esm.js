@@ -287,11 +287,78 @@ if (typeof window !== "undefined") {
 class NotificationService {
   /**
    * @param {object} options
-   * @param {string}   options.apiKey    - Workspace API key
-   * @param {number|string} options.userId - Logged-in user's ID
-   * @param {function} options.onNotify  - Callback for in-app notifications
-   * @param {boolean}  [options.enablePush=false] - Browser push notification 
+   * @param {string}   options.apiKey 
+   * @param {number|string} options.userId 
+   * @param {function} options.onNotify 
+   * @param {boolean}  [options.enablePush=false]
    */
+  // static async init({ apiKey, userId, onNotify, enablePush = false }) {
+  //   if (window.__qbitsEcho) {
+  //     window.__qbitsEcho.disconnect();
+  //     window.__qbitsEcho = null;
+  //   }
+
+  //   try {
+  //     const config = await fetchConfig(apiKey, userId);
+  //     console.log(
+  //       "[NotificationService] Config received. Channel:",
+  //       config.channel,
+  //     );
+
+  //     // ── In-app (Reverb WebSocket) ──────────────────────────────────────
+  //     console.log("[NotificationService] Connecting to Reverb...");
+
+  //     const echo = new Echo({
+  //       broadcaster: "reverb",
+  //       key: config.reverb.key,
+  //       wsHost: config.reverb.host,
+  //       wsPort: config.reverb.port,
+  //       wssPort: config.reverb.port,
+  //       forceTLS: config.reverb.scheme === "https",
+  //       enabledTransports: config.reverb.scheme === "https" ? ["wss"] : ["ws"],
+
+  //       authEndpoint: config.authEndpoint,
+  //       auth: {
+  //         headers: {
+  //           "X-Socket-Token": config.socketToken,
+  //           "X-Api-Key": apiKey,
+  //         },
+  //       },
+  //     });
+  //     window.__qbitsEcho = echo;
+
+  //     await waitForConnection(echo);
+  //     console.log("[NotificationService] Connected to Reverb!");
+
+  //     subscribeChannel(echo, config.channel, onNotify);
+  //     console.log(
+  //       "[NotificationService] Subscribed to channel:",
+  //       config.channel,
+  //     );
+
+  //     // ── Browser Push (Firebase / OneSignal) ───────────────────────────
+  //     if (enablePush && config.push) {
+  //       console.log(
+  //         "[NotificationService] Initializing push notifications via:",
+  //         config.push.provider,
+  //       );
+  //       initPush(apiKey, userId, config.push).catch((err) => {
+  //         console.warn("[NotificationService] Push init failed:", err.message);
+  //       });
+  //     } else if (enablePush && !config.push) {
+  //       console.warn(
+  //         "[NotificationService] enablePush=true কিন্তু server এ push credential configure করা নেই।",
+  //       );
+  //     }
+  //   } catch (err) {
+  //     console.error(
+  //       "[NotificationService] Initialization failed:",
+  //       err.message,
+  //     );
+  //     throw err;
+  //   }
+  // }
+
   static async init({ apiKey, userId, onNotify, enablePush = false }) {
     if (window.__qbitsEcho) {
       window.__qbitsEcho.disconnect();
@@ -299,63 +366,49 @@ class NotificationService {
     }
 
     try {
-      console.log("[NotificationService] Fetching config...");
       const config = await fetchConfig(apiKey, userId);
-      console.log(
-        "[NotificationService] Config received. Channel:",
-        config.channel,
-      );
+      console.log("[NotificationService] Config received. Channel:", config.channel);
 
-      // ── In-app (Reverb WebSocket) ──────────────────────────────────────
-      console.log("[NotificationService] Connecting to Reverb...");
+      if (config.reverb?.key) {
+        console.log("[NotificationService] Connecting to Reverb...");
 
-      const echo = new Echo({
-        broadcaster: "reverb",
-        key: config.reverb.key,
-        wsHost: config.reverb.host,
-        wsPort: config.reverb.port,
-        wssPort: config.reverb.port,
-        forceTLS: config.reverb.scheme === "https",
-        enabledTransports: config.reverb.scheme === "https" ? ["wss"] : ["ws"],
-
-        authEndpoint: config.authEndpoint,
-        auth: {
-          headers: {
-            "X-Socket-Token": config.socketToken,
-            "X-Api-Key": apiKey,
+        const echo = new Echo({
+          broadcaster: "reverb",
+          key: config.reverb.key,
+          wsHost: config.reverb.host,
+          wsPort: config.reverb.port,
+          wssPort: config.reverb.port,
+          forceTLS: config.reverb.scheme === "https",
+          enabledTransports: config.reverb.scheme === "https" ? ["wss"] : ["ws"],
+          authEndpoint: config.authEndpoint,
+          auth: {
+            headers: {
+              "X-Socket-Token": config.socketToken,
+              "X-Api-Key": apiKey,
+            },
           },
-        },
-      });
-      window.__qbitsEcho = echo;
+        });
+        window.__qbitsEcho = echo;
 
-      await waitForConnection(echo);
-      console.log("[NotificationService] Connected to Reverb!");
+        await waitForConnection(echo);
+        console.log("[NotificationService] Connected to Reverb!");
 
-      subscribeChannel(echo, config.channel, onNotify);
-      console.log(
-        "[NotificationService] Subscribed to channel:",
-        config.channel,
-      );
-
-      // ── Browser Push (Firebase / OneSignal) ───────────────────────────
+        subscribeChannel(echo, config.channel, onNotify);
+        console.log("[NotificationService] Subscribed to channel:", config.channel);
+      } else {
+        console.log("[NotificationService] Reverb config not found, skipping WebSocket.");
+      }
       if (enablePush && config.push) {
-        console.log(
-          "[NotificationService] Initializing push notifications via:",
-          config.push.provider,
-        );
+        console.log("[NotificationService] Initializing push via:", config.push.provider);
         initPush(apiKey, userId, config.push).catch((err) => {
           console.warn("[NotificationService] Push init failed:", err.message);
         });
       } else if (enablePush && !config.push) {
-        console.warn(
-          "[NotificationService] enablePush=true কিন্তু server এ push credential configure করা নেই।",
-        );
+        console.warn("[NotificationService] enablePush=true কিন্তু server এ push credential নেই।");
       }
+
     } catch (err) {
-      console.error(
-        "[NotificationService] Initialization failed:",
-        err.message,
-      );
+      console.error("[NotificationService] Initialization failed:", err.message);
       throw err;
     }
   }
