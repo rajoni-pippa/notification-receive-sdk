@@ -2,7 +2,7 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 
 // const SAAS_URL = import.meta.env.VITE_SAAS_BASE_URL;
-const SAAS_URL$1 = "https://pippasync-notification-service.test/api";
+const SAAS_URL$1 = "https://naas.api.pippasync.com/api";
 
 async function fetchConfig(apiKey, userId) {
   const res = await fetch(
@@ -70,7 +70,7 @@ function subscribeChannel(echo, channel, onNotify) {
         });
 }
 
-const SAAS_URL = "https://pippasync-notification-service.test/api";
+const SAAS_URL = "https://naas.api.pippasync.com/api";
 
 async function initPush(apiKey, userId, pushConfig) {
   if (!pushConfig || !pushConfig.provider) {

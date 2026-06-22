@@ -1,6 +1,6 @@
 
 
-const SAAS_URL = "https://pippasync-notification-service.test/api";
+const SAAS_URL = "https://naas.api.pippasync.com/api";
 
 export async function initPush(apiKey, userId, pushConfig) {
   if (!pushConfig || !pushConfig.provider) {

@@ -8,7 +8,7 @@
  *   Client এর domain এ কোনো file রাখতে হবে না।
  */
 
-const SAAS_URL = "https://pippasync-notification-service.test/api";
+const SAAS_URL = "https://naas.api.pippasync.com/api";
 
 export async function initPush(apiKey, userId, pushConfig) {
   if (!pushConfig || !pushConfig.provider) {
@@ -64,8 +64,7 @@ async function initFirebasePush(apiKey, userId, pushConfig) {
     const messaging = getMessaging(app);
 
     // ── Dynamic SW via Blob ───────────────────────────────────────────────
-    // Public folder এ static file রাখার দরকার নেই।
-    // firebase_config সরাসরি SW এর ভেতরে inject হয়ে যায়।
+
     const registration = await registerFirebaseSWBlob(firebase_config, version);
 
     const token = await getToken(messaging, {
