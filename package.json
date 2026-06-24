@@ -9,13 +9,13 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c --watch",
-    "postinstall": "node postinstall.js"
+    "postinstall": "node postinstall.cjs"
   },
   "files": [
     "dist",
     "firebase-messaging-sw.js",
     "OneSignalSDKWorker.js",
-    "postinstall.js"
+    "postinstall.cjs"
   ],
   "dependencies": {
     "laravel-echo": "^1.15.3",
