@@ -1,6 +1,6 @@
 {
   "name": "@rajoni/notification-service-sdk",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "description": "Realtime in-app notification SDK for Notification Service",
   "main": "dist/sdk.esm.js",
   "module": "dist/sdk.esm.js",
@@ -8,8 +8,15 @@
   "browser": "dist/sdk.min.js",
   "scripts": {
     "build": "rollup -c",
-    "dev": "rollup -c --watch"
+    "dev": "rollup -c --watch",
+    "postinstall": "node postinstall.js"
   },
+  "files": [
+    "dist",
+    "firebase-messaging-sw.js",
+    "OneSignalSDKWorker.js",
+    "postinstall.js"
+  ],
   "dependencies": {
     "laravel-echo": "^1.15.3",
     "pusher-js": "^8.3.0"
